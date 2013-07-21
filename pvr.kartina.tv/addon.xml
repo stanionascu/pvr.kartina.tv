@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<addon
+  id="pvr.kartina.tv"
+  version="0.0.1"
+  name="KartinaTV Live"
+  provider-name="Stanislav Ionascu">
+  <requires>
+    <c-pluff version="0.1"/>
+    <import addon="xbmc.pvr" version="2.0.0"/>
+  </requires>
+  <extension
+    point="xbmc.pvrclient"
+    library_linux="pvr.kartina.tv.so"
+    library_osx="pvr.kartina.tv.dylib"
+    library_windx="pvr.kartina.tv.dll"
+    library_android="libpvr.kartina.tv.so" />
+  <extension point="xbmc.addon.metadata">
+    <summary lang="en">KartinaTV Live</summary>
+    <description lang="en">KartinaTV Live</description>
+    <disclaimer lang="en">KartinaTV PVR client for XBMC</disclaimer>
+  </extension>
+</addon>

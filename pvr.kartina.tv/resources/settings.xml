@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<settings>
+  <!-- ACCOUNT -->
+  <category label="Account">
+    <setting id="username" type="text" label="Username" default="" />
+    <setting id="password" type="text" label="Password" option="hidden" default="" />
+    <setting id="protect_code" type="text" label="Parent Code" option="hidden" default="" />
+  </category>
+</settings>
