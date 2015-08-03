@@ -109,9 +109,14 @@ ADDON_STATUS ADDON_Create(void* hdl, void* props)
 
     CLIENT = new KartinaTVClient(XBMC, PVR);
     CLIENT->setUserProfilePath(g_strUserPath);
-    CLIENT->login(std::string(g_strUsername), std::string(g_strPassword));
+    CLIENT->setCredentials(g_strUsername, g_strPassword);
     if (!g_strProtectCode.empty())
         CLIENT->setProtectCode(g_strProtectCode);
+
+    if (CLIENT->login())
+        XBMC->QueueNotification(ADDON::QUEUE_INFO, "Welcome!");
+    else
+        return ADDON_STATUS_NEED_SETTINGS;
 
     m_CurStatus = ADDON_STATUS_OK;
     m_bCreated = true;
@@ -125,7 +130,6 @@ ADDON_STATUS ADDON_GetStatus()
 
 void ADDON_Destroy()
 {
-    CLIENT->logout();
     delete CLIENT;
     CLIENT = 0;
 

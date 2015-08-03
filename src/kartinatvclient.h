@@ -84,8 +84,9 @@ public:
     virtual ~KartinaTVClient();
 
     void setUserProfilePath(const std::string &path);
+    void setCredentials(const std::string &userName, const std::string &password);
 
-    bool login(const std::string &user, const std::string &pass);
+    bool login(bool force = false);
     void logout();
     void setProtectCode(const std::string &code);
 
@@ -124,12 +125,19 @@ protected:
             const ChannelGroupMember &member);
 
     std::string makeRequest(const char *apiFunction, PostFields &parameters);
+    std::string sendRequest(const char *apiFunction, PostFields &parameters);
+
     static std::string stringifyPostFields(const PostFields &fields);
+
+    std::string readFromFileCache(const std::string &filename);
+    void writeToFileCache(const std::string &filename, const std::string &content);
+    void eraseFileCache(const std::string &filename);
 
 private:
     ADDON::CHelper_libXBMC_addon *XBMC;
     CHelper_libXBMC_pvr *PVR;
 
+    struct { std::string userName; std::string password; } credentials;
     std::pair<std::string, std::string> sessionId;
     std::string protectCode;
 
