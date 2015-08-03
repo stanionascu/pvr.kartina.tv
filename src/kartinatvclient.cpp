@@ -168,7 +168,6 @@ bool KartinaTVClient::loadEpgFromCache(ADDON_HANDLE handle, const PVR_CHANNEL &c
               start,
               end);
 
-
     if (!channel.bIsRadio)
         updateChannelEpg(channel.iUniqueId, start, end);
     auto epg = channelEpgCache.find(channel.iUniqueId);
@@ -573,8 +572,11 @@ std::string KartinaTVClient::makeRequest(const char *apiFunction, PostFields &pa
                 return std::string();
             }
             break;
-        default:
+        case ErrorCode::QueryLimitExceeded:
+            usleep(REQ_TIME_LIMIT * 2);
             break;
+        default:
+            return reply;
         }
     } while (static_cast<ErrorCode>(error.code) != ErrorCode::OK);
 
@@ -583,7 +585,20 @@ std::string KartinaTVClient::makeRequest(const char *apiFunction, PostFields &pa
 
 std::string KartinaTVClient::sendRequest(const char *apiFunction, PostFields &parameters)
 {
+    static auto lastRequestTime = PLATFORM::GetTimeMs();
+    static uint8_t requestCount = 0;
+
+    auto timeSinceLastRequest = PLATFORM::GetTimeMs() - lastRequestTime;
+
     XBMC->Log(ADDON::LOG_DEBUG, (KTV_FUNC_INFO ": connecting to " + API_SERVER + "...").c_str());
+
+    if (requestCount >= 4 && timeSinceLastRequest < 1000) {
+        usleep(REQ_TIME_LIMIT);
+        requestCount = 0;
+    }
+    else if (timeSinceLastRequest > 1000) {
+        requestCount = 0;
+    }
 
     PLATFORM::CTcpConnection sock(API_SERVER, API_PORT);
     if (!sock.Open(30000)) {
@@ -592,15 +607,8 @@ std::string KartinaTVClient::sendRequest(const char *apiFunction, PostFields &pa
     }
 
     XBMC->Log(ADDON::LOG_DEBUG, KTV_FUNC_INFO ": connected...");
-    if (requestNumber > 3) {
-        XBMC->Log(ADDON::LOG_DEBUG, KTV_FUNC_INFO "sleeping...");
-        usleep(REQ_TIME_LIMIT);
-        requestNumber = 0;
-        XBMC->Log(ADDON::LOG_DEBUG, KTV_FUNC_INFO "waking up...");
-    }
-    else {
-        ++requestNumber;
-    }
+    ++ requestCount;
+    lastRequestTime = PLATFORM::GetTimeMs();
 
     const std::string &apiCallUrl = makeApiUrl(apiFunction);
     const std::string &postFields = stringifyPostFields(parameters);
