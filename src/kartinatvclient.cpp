@@ -597,6 +597,8 @@ std::string KartinaTVClient::sendRequest(const char *apiFunction, PostFields &pa
 {
     static auto lastResetTime = PLATFORM::GetTimeMs();
     static uint8_t requestCount = 0;
+    static PLATFORM::CMutex mutex;
+    mutex.Lock();
 
     auto timeSinceLastReset = PLATFORM::GetTimeMs() - lastResetTime;
 
@@ -616,6 +618,7 @@ std::string KartinaTVClient::sendRequest(const char *apiFunction, PostFields &pa
     PLATFORM::CTcpConnection sock(API_SERVER, API_PORT);
     if (!sock.Open(30000)) {
         XBMC->Log(ADDON::LOG_ERROR, (KTV_FUNC_INFO ": connection to " + API_SERVER + " failed!").c_str());
+        mutex.Unlock();
         return std::string();
     }
 
@@ -664,7 +667,7 @@ std::string KartinaTVClient::sendRequest(const char *apiFunction, PostFields &pa
     sock.Close();
 
     XBMC->Log(ADDON::LOG_DEBUG, KTV_FUNC_INFO ": connection closed.");
-
+    mutex.Unlock();
     return body;
 }
 
