@@ -424,6 +424,9 @@ void KartinaTVClient::updateChannelEpg(int channelId, time_t start, time_t end)
             Json::Value root;
             json.parse(reply, root);
             const Json::Value &epg = root["epg"];
+            if (epg.size() == 0)
+                return;
+
             int showId = 1;
             for (Json::Value::UInt j = 0; j < epg.size(); ++ j) {
                 const Json::Value &show = epg[j];
@@ -468,6 +471,9 @@ void KartinaTVClient::updateChannelEpg(int channelId, time_t start, time_t end)
                 lastTag = tag;
                 ++ showId;
             }
+        }
+        else {
+            return;
         }
         t->tm_mday += 1;
         start = mktime(t);
