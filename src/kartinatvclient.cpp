@@ -571,7 +571,9 @@ std::string KartinaTVClient::makeRequest(const char *apiFunction, PostFields &pa
     do {
         reply = sendRequest(apiFunction, parameters);
         error = checkForError(reply);
-        switch (static_cast<ErrorCode>(error.code)) {
+        switch (error.code) {
+        case ErrorCode::OK:
+            break;
         case ErrorCode::Authentication:
             if (!login(true)) {
                 XBMC->QueueNotification(ADDON::QUEUE_ERROR, "Cannot login");
@@ -584,7 +586,9 @@ std::string KartinaTVClient::makeRequest(const char *apiFunction, PostFields &pa
         default:
             return reply;
         }
-    } while (static_cast<ErrorCode>(error.code) != ErrorCode::OK);
+        if (reply.empty())
+            usleep(REQ_TIME_LIMIT);
+    } while (static_cast<ErrorCode>(error.code) != ErrorCode::OK && !reply.empty());
 
     return reply;
 }
