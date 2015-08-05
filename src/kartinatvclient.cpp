@@ -42,7 +42,7 @@ const std::string KartinaTVClient::API_SERVER = "iptv.kartina.tv";
 namespace {
 #define API_URL "/api/json/"
 const uint16_t API_PORT = 80;
-const uint32_t REQ_TIME_LIMIT = 1000000;
+const uint32_t REQ_TIME_LIMIT = 1010000;
 
 std::string makeApiUrl(const char *functionName)
 {
@@ -591,20 +591,23 @@ std::string KartinaTVClient::makeRequest(const char *apiFunction, PostFields &pa
 
 std::string KartinaTVClient::sendRequest(const char *apiFunction, PostFields &parameters)
 {
-    static auto lastRequestTime = PLATFORM::GetTimeMs();
+    static auto lastResetTime = PLATFORM::GetTimeMs();
     static uint8_t requestCount = 0;
 
-    auto timeSinceLastRequest = PLATFORM::GetTimeMs() - lastRequestTime;
+    auto timeSinceLastReset = PLATFORM::GetTimeMs() - lastResetTime;
 
     XBMC->Log(ADDON::LOG_DEBUG, (KTV_FUNC_INFO ": connecting to " + API_SERVER + "...").c_str());
 
-    if (requestCount >= 4 && timeSinceLastRequest < 1000) {
-        usleep(REQ_TIME_LIMIT);
+    if (requestCount >= 4 && timeSinceLastReset < 1000) {
+        usleep(REQ_TIME_LIMIT - (timeSinceLastReset * 1000));
         requestCount = 0;
     }
-    else if (timeSinceLastRequest > 1000) {
+    else if (timeSinceLastReset > 1000) {
         requestCount = 0;
     }
+
+    if (requestCount == 0)
+        lastResetTime = PLATFORM::GetTimeMs();
 
     PLATFORM::CTcpConnection sock(API_SERVER, API_PORT);
     if (!sock.Open(30000)) {
@@ -614,7 +617,6 @@ std::string KartinaTVClient::sendRequest(const char *apiFunction, PostFields &pa
 
     XBMC->Log(ADDON::LOG_DEBUG, KTV_FUNC_INFO ": connected...");
     ++ requestCount;
-    lastRequestTime = PLATFORM::GetTimeMs();
 
     const std::string &apiCallUrl = makeApiUrl(apiFunction);
     const std::string &postFields = stringifyPostFields(parameters);
