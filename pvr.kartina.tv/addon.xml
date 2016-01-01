@@ -7,6 +7,7 @@
   <requires>
     <c-pluff version="0.1"/>
     <import addon="xbmc.pvr" version="2.0.0"/>
+    <import addon="xbmc.python" version="2.1.0"/>
   </requires>
   <extension
     point="xbmc.pvrclient"
@@ -18,5 +19,12 @@
     <summary lang="en">KartinaTV Live</summary>
     <description lang="en">KartinaTV Live</description>
     <disclaimer lang="en">KartinaTV PVR client for XBMC</disclaimer>
+  </extension>
+  <extension
+    point="xbmc.python.pluginsource"
+    library="vod.py">
+
+    <provides>video</provides>
+
   </extension>
 </addon>
