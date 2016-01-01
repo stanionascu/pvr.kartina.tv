@@ -417,14 +417,14 @@ void KartinaTVClient::updateChannelEpg(int channelId, time_t start, time_t end)
             { "cid", std::to_string(channelId) },
             { "day", day }
         };
-        std::string reply = makeRequest("/epg", req);
+        std::string reply = makeRequest("epg", req);
         KTVError ktvError;
         if (reply.size() != 0 && (ktvError = checkForError(reply)).code == ErrorCode::OK) {
             Json::Reader json;
             Json::Value root;
             json.parse(reply, root);
             const Json::Value &epg = root["epg"];
-            if (epg.size() == 0)
+            if (epg.empty())
                 return;
 
             int showId = 1;
@@ -471,9 +471,6 @@ void KartinaTVClient::updateChannelEpg(int channelId, time_t start, time_t end)
                 lastTag = tag;
                 ++ showId;
             }
-        }
-        else {
-            return;
         }
         t->tm_mday += 1;
         start = mktime(t);
@@ -646,7 +643,7 @@ std::string KartinaTVClient::sendRequest(const char *apiFunction, PostFields &pa
     std::string reply;
     while (sock.IsOpen()) {
         char buff[10240];
-        ssize_t bytesRead = sock.Read(buff, sizeof(buff));
+        ssize_t bytesRead = sock.Read(buff, sizeof(buff), 5000);
         if (bytesRead > 0) {
             reply += std::string(buff, bytesRead);
         }
