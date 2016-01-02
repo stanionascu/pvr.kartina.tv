@@ -22,7 +22,7 @@
 
 import sys
 import httplib, json, urllib, urlparse
-import xbmc, xbmcaddon, xbmcgui, xbmcplugin, datetime
+import xbmc, xbmcaddon, xbmcgui, xbmcplugin, datetime, HTMLParser
 
 API_SERVER = 'iptv.kartina.tv'
 API_URL = '/api/json/'
@@ -97,15 +97,17 @@ if 'mode' in args:
 		if type == 'genre':
 			params['genre'] = int(args['genre'][0])
 
+		html_parser = HTMLParser.HTMLParser()
 		total, vod_items = get_items(params)
 		for item in vod_items:
 			url = make_addon_url({'mode': 'view', 'id': item['id']})
 			poster_url = 'http://' + API_SERVER + item['poster']
-			li = xbmcgui.ListItem(item['name'])
+			item_name = html_parser.unescape(item['name'])
+			li = xbmcgui.ListItem(item_name)
 			li.setInfo('video',
 			  {'genre': item['genre_str'],
 			  'year': item['year'],
-			  'title': item['name'],
+			  'title': item_name,
 			  'originaltitle': item['name_orig'],
 			  'rating': item['rate_kinopoisk'],
 			  'mpaa': item['rate_mpaa'],
@@ -127,6 +129,7 @@ if 'mode' in args:
 		response = make_request('vod_info', {'id': vod_id})
 		jsponse = json.loads(response)['film']
 		params = { 'mode': 'play' }
+		html_parser = HTMLParser.HTMLParser()
 		for video in jsponse['videos']:
 			params['id'] = video['id']
 			poster_url = 'http://' + API_SERVER + jsponse['poster']
@@ -134,7 +137,7 @@ if 'mode' in args:
 			li.setInfo('video',
 			  {'genre': jsponse['genre_str'],
 			  'year': jsponse['year'],
-			  'title': jsponse['name'],
+			  'title': html_parser.unescape(jsponse['name']),
 			  'rating': jsponse['rate_kinopoisk'],
 			  'mpaa': jsponse['rate_mpaa'],
 			  'plot': jsponse['description'],
