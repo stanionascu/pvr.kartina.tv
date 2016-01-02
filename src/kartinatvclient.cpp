@@ -247,6 +247,9 @@ bool KartinaTVClient::login(bool force)
         PostFields parameters;
         parameters.insert(std::make_pair("login", credentials.userName));
         parameters.insert(std::make_pair("pass", credentials.password));
+        parameters.insert(std::make_pair("settings", "all"));
+        parameters.insert(std::make_pair("softid", "pvr.kartina.tv"));
+
         authCache = std::move(sendRequest("login", parameters));
         error = checkForError(authCache);
         if (!authCache.empty() && error.code == ErrorCode::OK)
@@ -625,6 +628,8 @@ std::string KartinaTVClient::sendRequest(const char *apiFunction, PostFields &pa
     const std::string &apiCallUrl = makeApiUrl(apiFunction);
     const std::string &postFields = stringifyPostFields(parameters);
     CStdString request = "POST " + apiCallUrl + " HTTP/1.0" + "\r\n" +
+        "User-Agent: Kodi 15.2 (Isengard), pvr.kartina.tv" + "\r\n" +
+        "Connection: close" + "\r\n" +
         "Host: " + API_SERVER + "\r\n" +
         "Content-Type: application/x-www-form-urlencoded" + "\r\n" +
         "Content-Length: " + std::to_string(postFields.size()) + "\r\n";

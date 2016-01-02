@@ -46,7 +46,9 @@ def make_request(api, params=dict()):
 	h = httplib.HTTPConnection(API_SERVER)
 
 	headers = { 'Cookie': authcookie,
-		   'Content-Type' : 'application/x-www-form-urlencoded' }	
+		   'Content-Type' : 'application/x-www-form-urlencoded',
+		   'User-Agent': 'Kodi 15.2 (Isengard), pvr.kartina.tv'
+	}
 	h.request('POST', API_URL + api, urllib.urlencode(params), headers)
 	response = h.getresponse()
 	return response.read()
