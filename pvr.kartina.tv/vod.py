@@ -22,7 +22,7 @@
 
 import sys
 import httplib, json, urllib, urlparse
-import xbmc, xbmcaddon, xbmcgui, xbmcplugin
+import xbmc, xbmcaddon, xbmcgui, xbmcplugin, datetime
 
 API_SERVER = 'iptv.kartina.tv'
 API_URL = '/api/json/'
@@ -59,6 +59,20 @@ def get_items(query):
 	reply = make_request('vod_list', query)
 	jply = json.loads(reply)
 	return int(jply['total']), jply['rows']
+
+def get_channels():
+    reply = make_request('channel_list')
+    jply = json.loads(reply)
+    channels = list()
+    for group in jply['groups']:
+        for channel in group['channels']:
+            channels.append(channel)
+    return channels
+
+def get_epg(cid, date):
+	reply = make_request('epg', {'cid': cid, 'day' : date })
+	jply = json.loads(reply)
+	return jply['epg']
 
 def make_addon_url(params=dict()):
 	return "%s?%s" % (addon_url, urllib.urlencode(params, True))
@@ -160,6 +174,14 @@ if 'mode' in args:
 			)
 		li.setArt({'poster': xbmc.getInfoLabel('ListItem.Art(poster)')})
 		xbmc.Player().play(url[0], listitem=li)
+	elif mode == 'archive_play':
+		cid = int(args['cid'][0])
+		start_time = int(args['start'][0])
+		reply = make_request('get_url', {'cid':cid, 'gmt':start_time})
+		fullurl = json.loads(reply)['url']
+		url = fullurl.split(' ')
+		li = xbmcgui.ListItem(xbmc.getInfoLabel('ListItem.Label'))
+		xbmc.Player().play(url[0].replace('http/ts', 'http'), listitem=li)
 	elif mode == 'genre':
 		genres = get_genres()
 		for genre in genres:
@@ -168,6 +190,48 @@ if 'mode' in args:
 				url=url,
 				listitem=xbmcgui.ListItem(genre['name']),
 				isFolder=True)
+	elif mode == 'archive':
+		params = { 'mode': mode }
+		if 'cid' not in args:
+			channels = get_channels();
+			for channel in channels:
+				if 'have_archive' in channel and channel['have_archive'] == 1:
+					params['cid'] = channel['id']
+					li = xbmcgui.ListItem(channel['name'])
+					li.setArt({'poster': 'http://' + API_SERVER + channel['icon']})
+					xbmcplugin.addDirectoryItem(handle=addon_handle,
+						url=make_addon_url(params),
+						listitem=li,
+						isFolder=True)
+		elif 'date' not in args:
+			cid = args['cid'][0]
+			params['cid'] = cid
+			start_date = datetime.datetime.now()
+			end_date = start_date + datetime.timedelta(-14)
+			d = start_date
+			while (d >= end_date):
+				params['date'] = d.strftime('%d%m%y')
+				xbmcplugin.addDirectoryItem(handle=addon_handle,
+							url=make_addon_url(params),
+							listitem=xbmcgui.ListItem(d.strftime('%Y-%m-%d')),
+							isFolder=True)
+				d += datetime.timedelta(-1)
+		else:
+			cid = int(args['cid'][0])
+			date = args['date'][0]
+			params = {'cid' : cid, 'mode' : 'archive_play'}
+			epg = get_epg(cid, date)
+			now_epoch = int((datetime.datetime.now() - datetime.datetime(1970,1,1)).total_seconds())
+			for e in epg:
+				progname = e['progname'].split('\n')
+				params['start'] = int(e['ut_start'])
+				title = e['t_start'] + ' - ' + progname[0]
+				li = xbmcgui.ListItem(title)
+				if params['start'] < now_epoch:
+					xbmcplugin.addDirectoryItem(handle=addon_handle,
+						url=make_addon_url(params),
+						listitem=li,
+						isFolder=False)
 else:
 	types = [{'type':'best', 'name':'Best movies'},
 		  {'type':'last', 'name':'Newest movies'},
@@ -183,6 +247,10 @@ else:
 	xbmcplugin.addDirectoryItem(handle=addon_handle,
 		url=make_addon_url({'mode': 'genre'}),
 		listitem=xbmcgui.ListItem('Movies by genre'),
+		isFolder=True)
+	xbmcplugin.addDirectoryItem(handle=addon_handle,
+		url=make_addon_url({'mode': 'archive'}),
+		listitem=xbmcgui.ListItem('Archive'),
 		isFolder=True)
 
 xbmcplugin.endOfDirectory(addon_handle)
