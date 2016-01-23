@@ -628,7 +628,7 @@ std::string KartinaTVClient::sendRequest(const char *apiFunction, PostFields &pa
     const std::string &apiCallUrl = makeApiUrl(apiFunction);
     const std::string &postFields = stringifyPostFields(parameters);
     CStdString request = "POST " + apiCallUrl + " HTTP/1.0" + "\r\n" +
-        "User-Agent: Kodi 15.2 (Isengard), pvr.kartina.tv" + "\r\n" +
+        "User-Agent: Kodi 16.0 (Jarvis), pvr.kartina.tv" + "\r\n" +
         "Connection: close" + "\r\n" +
         "Host: " + API_SERVER + "\r\n" +
         "Content-Type: application/x-www-form-urlencoded" + "\r\n" +
