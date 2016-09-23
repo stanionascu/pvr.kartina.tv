@@ -31,11 +31,11 @@
 #endif
 #include <ctime>
 
-#include <platform/sockets/tcp.h>
+#include <p8-platform/sockets/tcp.h>
 #include <json/json.h>
 #include "kodi/libXBMC_addon.h"
 #include "kodi/libXBMC_pvr.h"
-#include "platform/util/StdString.h"
+#include "p8-platform/util/StdString.h"
 
 const std::string KartinaTVClient::API_SERVER = "iptv.kartina.tv";
 
@@ -69,14 +69,11 @@ struct KTVError {
     std::string message;
 };
 
-KTVError checkForError(const std::string &buffer)
+KTVError checkForError(const Json::Value &root)
 {
     KTVError error;
-    Json::Reader reader;
-    Json::Value root;
-    reader.parse(buffer, root);
     if (!root.isNull()) {
-        Json::Value jsonError = root["error"];
+        const auto &jsonError = root["error"];
         if (!jsonError.isNull()) {
             error.code = (ErrorCode)jsonError["code"].asInt();
             error.message = jsonError["message"].asString();
@@ -192,14 +189,9 @@ std::string KartinaTVClient::requestStreamUrl(const PVR_CHANNEL &channel)
     if (isProtected)
         parameters.insert(std::make_pair("protect_code", protectCode));
 
-    std::string reply = makeRequest("get_url", parameters);
-    XBMC->Log(ADDON::LOG_DEBUG, KTV_FUNC_INFO ": data: %s", reply.c_str());
-
-    KTVError ktvError;
-    if (reply.size() != 0 && (ktvError = checkForError(reply)).code == ErrorCode::OK) {
-        Json::Reader json;
-        Json::Value root;
-        json.parse(reply, root);
+    const auto &root = makeRequest("get_url", parameters);
+    KTVError ktvError = checkForError(root);
+    if (!root.isNull() && ktvError.isOk()) {
         const char *urlData = root["url"].asCString();
 
         std::vector<std::string> urlParams;
@@ -240,9 +232,12 @@ bool KartinaTVClient::login(bool force)
 
     if (force)
         eraseFileCache(cacheFileName);
-    std::string authCache = std::move(readFromFileCache(cacheFileName));
+    std::string authCache = readFromFileCache(cacheFileName);
 
     KTVError error;
+    Json::Reader json;
+    Json::Value root;
+
     if (authCache.empty()) {
         PostFields parameters;
         parameters.insert(std::make_pair("login", credentials.userName));
@@ -250,16 +245,20 @@ bool KartinaTVClient::login(bool force)
         parameters.insert(std::make_pair("settings", "all"));
         parameters.insert(std::make_pair("softid", "pvr.kartina.tv"));
 
-        authCache = std::move(sendRequest("login", parameters));
-        error = checkForError(authCache);
+        authCache = sendRequest("login", parameters);
+        if (json.parse(authCache, root)) {
+            error = checkForError(root);
+        } else {
+            XBMC->Log(ADDON::LOG_DEBUG, "Invalid json");
+        }
+
         if (!authCache.empty() && error.code == ErrorCode::OK)
             writeToFileCache(cacheFileName, authCache);
+    } else {
+        json.parse(authCache, root);
     }
 
-    if (!authCache.empty()) {
-        Json::Reader json;
-        Json::Value root;
-        json.parse(authCache, root);
+    if (!root.isNull()) {
         sessionId.first = root["sid_name"].asString();
         sessionId.second = root["sid"].asString();
     } else {
@@ -289,28 +288,23 @@ void KartinaTVClient::updateChannelList()
     XBMC->Log(ADDON::LOG_DEBUG, "void KartinaTVClient::updateChannelsList()");
 
     PostFields parameters;
-    std::string reply = makeRequest("channel_list", parameters);
+    const auto &root = makeRequest("channel_list", parameters);
     channelsCache.clear();
 
-    KTVError ktvError;
-    if (reply.size() != 0 && (ktvError = checkForError(reply)).code == ErrorCode::OK) {
-        Json::Reader json;
-        Json::Value root;
-        json.parse(reply, root);
-        Json::Value groups = root["groups"];
-        for (Json::Value::UInt i = 0; i < groups.size(); ++i) {
-            const Json::Value &group = groups[i];
+    KTVError ktvError = checkForError(root);
+    if (!root.isNull() && ktvError.isOk()) {
+        const auto &groups = root["groups"];
+        for (const auto &group : groups) {
             ChannelGroup channelGroup = channelGroupFromJson(group);
             channelGroupsCache.push_back(channelGroup);
             const Json::Value &channels = group["channels"];
             if (!channels.isNull()) {
-                for (Json::Value::UInt j = 0; j < channels.size(); ++j) {
-                    Channel channel = channelFromJson(channels[j]);
+                for (const auto &jsonChannel : channels) {
+                    Channel channel = channelFromJson(jsonChannel);
                     channel.number = channelsCache.size() + 1;
-                    channelsCache.push_back(channel);
-                    channelGroupMembersCache.push_back(
-                                createChannelGroupMember(channel,
-                                                         channelGroup));
+                    channelsCache.emplace_back(channel);
+                    channelGroupMembersCache.emplace_back(
+                        createChannelGroupMember(channel, channelGroup));
                 }
             }
         }
@@ -327,34 +321,28 @@ void KartinaTVClient::updateChannelEpg(time_t start, int hours)
     PostFields parameters;
     parameters.insert(std::make_pair("dtime", std::to_string(start)));
     parameters.insert(std::make_pair("period", std::to_string(hours)));
-    std::string reply = makeRequest("epg3", parameters);
+    const auto &root = makeRequest("epg3", parameters);
     channelEpgCache.clear();
 
-    KTVError ktvError;
-
-    if (reply.size() != 0 && (ktvError = checkForError(reply)).code == ErrorCode::OK) {
-        Json::Reader json;
-        Json::Value root;
-        json.parse(reply, root);
-        const Json::Value &epg3 = root["epg3"];
-        for (Json::Value::UInt i = 0; i < epg3.size(); ++i) {
-            const Json::Value &channelEpg = epg3[i];
+    KTVError ktvError = checkForError(root);
+    if (!root.isNull() && ktvError.isOk()) {
+        const auto &epg3 = root["epg3"];
+        for (const auto &channelEpg : epg3) {
             int channelId = -1;
             if (channelEpg["id"].isIntegral())
                 channelId = channelEpg["id"].asInt();
             else
                 channelId = std::stoi(channelEpg["id"].asString());
 
-            const Json::Value &epg = channelEpg["epg"];
+            const auto &epg = channelEpg["epg"];
             EPG_TAG *lastEntry = NULL;
             if (!epg.isNull()) {
-                for (Json::Value::UInt j = 0; j < epg.size(); ++j) {
-                    const Json::Value &program = epg[j];
-
+                for (const auto &program : epg) {
+                    auto &channelEpgCacheRef = channelEpgCache[channelId];
                     EPG_TAG *tag = new EPG_TAG;
                     memset(tag, 0, sizeof(EPG_TAG));
                     tag->iChannelNumber = channelId;
-                    tag->iUniqueBroadcastId = channelId * 10000 + j;
+                    tag->iUniqueBroadcastId = channelId * 10000 + channelEpgCacheRef.size();
                     tag->firstAired = 0;
                     if (lastEntry == NULL)
                         tag->startTime = start + 1;
@@ -373,26 +361,27 @@ void KartinaTVClient::updateChannelEpg(time_t start, int hours)
                     }
 
                     std::string title, plot;
-
                     if (titleLines.size() > 0)
                         title = titleLines.at(0);
                     else
                         title = longTitle;
 
                     if (titleLines.size() > 1) {
+                        std::ostringstream plotStream(plot);
                         for (unsigned int i = 1; i < titleLines.size(); ++i) {
-                            plot += " " + titleLines.at(i);
+                            if (i > 1)
+                                plotStream << ' ';
+                            plotStream << titleLines.at(i);
                         }
                     }
 
                     tag->strTitle = _strdup(title.c_str());
                     tag->strPlot = _strdup(plot.c_str());
 
-                    channelEpgCache[channelId].push_back(tag);
+                    channelEpgCacheRef.push_back(tag);
                     lastEntry = tag;
                 }
             }
-
             if (lastEntry)
                 lastEntry->endTime = lastEntry->startTime + 600;
         }
@@ -420,19 +409,16 @@ void KartinaTVClient::updateChannelEpg(int channelId, time_t start, time_t end)
             { "cid", std::to_string(channelId) },
             { "day", day }
         };
-        std::string reply = makeRequest("epg", req);
-        KTVError ktvError;
-        if (reply.size() != 0 && (ktvError = checkForError(reply)).code == ErrorCode::OK) {
-            Json::Reader json;
-            Json::Value root;
-            json.parse(reply, root);
-            const Json::Value &epg = root["epg"];
+        const auto &root = makeRequest("epg", req);
+        KTVError ktvError = checkForError(root);
+        if (!root.isNull() && ktvError.isOk()) {
+            const auto &epg = root["epg"];
             if (epg.empty())
                 return;
 
             int showId = 1;
             for (Json::Value::UInt j = 0; j < epg.size(); ++ j) {
-                const Json::Value &show = epg[j];
+                const auto &show = epg[j];
                 EPG_TAG *tag = new EPG_TAG;
                 memset(tag, 0, sizeof(EPG_TAG));
                 tag->iChannelNumber = channelId;
@@ -564,13 +550,14 @@ PVR_CHANNEL_GROUP_MEMBER KartinaTVClient::createPvrChannelGroupMember(
     return pvrMember;
 }
 
-std::string KartinaTVClient::makeRequest(const char *apiFunction, PostFields &parameters)
+Json::Value KartinaTVClient::makeRequest(const char *apiFunction, PostFields &parameters)
 {
     KTVError error;
-    std::string reply;
+    Json::Reader reader;
+    Json::Value root;
     do {
-        reply = sendRequest(apiFunction, parameters);
-        error = checkForError(reply);
+        reader.parse(sendRequest(apiFunction, parameters), root, false);
+        error = checkForError(root);
         switch (error.code) {
         case ErrorCode::OK:
             break;
@@ -584,23 +571,23 @@ std::string KartinaTVClient::makeRequest(const char *apiFunction, PostFields &pa
             usleep(REQ_TIME_LIMIT * 2);
             break;
         default:
-            return reply;
+            return {};
         }
-        if (reply.empty())
+        if (root.isNull())
             usleep(REQ_TIME_LIMIT);
-    } while (static_cast<ErrorCode>(error.code) != ErrorCode::OK && !reply.empty());
+    } while (static_cast<ErrorCode>(error.code) != ErrorCode::OK);
 
-    return reply;
+    return root;
 }
 
 std::string KartinaTVClient::sendRequest(const char *apiFunction, PostFields &parameters)
 {
-    static auto lastResetTime = PLATFORM::GetTimeMs();
+    static auto lastResetTime = P8PLATFORM::GetTimeMs();
     static uint8_t requestCount = 0;
-    static PLATFORM::CMutex mutex;
+    static P8PLATFORM::CMutex mutex;
     mutex.Lock();
 
-    auto timeSinceLastReset = PLATFORM::GetTimeMs() - lastResetTime;
+    auto timeSinceLastReset = P8PLATFORM::GetTimeMs() - lastResetTime;
 
     XBMC->Log(ADDON::LOG_DEBUG, (KTV_FUNC_INFO ": connecting to " + API_SERVER + "...").c_str());
 
@@ -613,9 +600,9 @@ std::string KartinaTVClient::sendRequest(const char *apiFunction, PostFields &pa
     }
 
     if (requestCount == 0)
-        lastResetTime = PLATFORM::GetTimeMs();
+        lastResetTime = P8PLATFORM::GetTimeMs();
 
-    PLATFORM::CTcpConnection sock(API_SERVER, API_PORT);
+    P8PLATFORM::CTcpConnection sock(API_SERVER, API_PORT);
     if (!sock.Open(30000)) {
         XBMC->Log(ADDON::LOG_ERROR, (KTV_FUNC_INFO ": connection to " + API_SERVER + " failed!").c_str());
         mutex.Unlock();
@@ -628,7 +615,7 @@ std::string KartinaTVClient::sendRequest(const char *apiFunction, PostFields &pa
     const std::string &apiCallUrl = makeApiUrl(apiFunction);
     const std::string &postFields = stringifyPostFields(parameters);
     CStdString request = "POST " + apiCallUrl + " HTTP/1.0" + "\r\n" +
-        "User-Agent: Kodi 16.0 (Jarvis), pvr.kartina.tv" + "\r\n" +
+        "User-Agent: Kodi 17.0 (Krypton), pvr.kartina.tv" + "\r\n" +
         "Connection: close" + "\r\n" +
         "Host: " + API_SERVER + "\r\n" +
         "Content-Type: application/x-www-form-urlencoded" + "\r\n" +
@@ -670,6 +657,7 @@ std::string KartinaTVClient::sendRequest(const char *apiFunction, PostFields &pa
 
     XBMC->Log(ADDON::LOG_DEBUG, KTV_FUNC_INFO ": connection closed.");
     mutex.Unlock();
+
     return body;
 }
 

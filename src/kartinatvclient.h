@@ -124,7 +124,7 @@ protected:
     PVR_CHANNEL_GROUP_MEMBER createPvrChannelGroupMember(
             const ChannelGroupMember &member);
 
-    std::string makeRequest(const char *apiFunction, PostFields &parameters);
+    Json::Value makeRequest(const char *apiFunction, PostFields &parameters);
     std::string sendRequest(const char *apiFunction, PostFields &parameters);
 
     static std::string stringifyPostFields(const PostFields &fields);

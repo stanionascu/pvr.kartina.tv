@@ -24,7 +24,7 @@
 #include "kodi/libXBMC_pvr.h"
 #include "kodi/xbmc_pvr_dll.h"
 #include "kodi/libKODI_guilib.h"
-#include <platform/util/util.h>
+#include <p8-platform/util/util.h>
 
 #include "kartinatvclient.h"
 
@@ -329,6 +329,12 @@ const char *GetBackendHostname(void)
 }
 
 /** UNUSED API FUNCTIONS */
+bool IsRealTimeStream() { return true; }
+PVR_ERROR SetEPGTimeFrame(int) { return PVR_ERROR_NOT_IMPLEMENTED; }
+void OnSystemSleep() { }
+void OnSystemWake() { }
+void OnPowerSavingActivated() { }
+void OnPowerSavingDeactivated() { }
 PVR_ERROR GetTimerTypes(PVR_TIMER_TYPE types[], int *typesCount) { return PVR_ERROR_NOT_IMPLEMENTED; }
 bool IsTimeshifting() { return false; }
 PVR_ERROR GetStreamProperties(PVR_STREAM_PROPERTIES* pProperties) { return PVR_ERROR_NOT_IMPLEMENTED; }
